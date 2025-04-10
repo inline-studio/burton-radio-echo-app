@@ -42,7 +42,9 @@
     "react-native-track-player": "^4.1.1-nightly-2765d09cb93541d89be94a4809320e4df33c0d47",
     "react-native-web": "~0.19.13",
     "react-native-webview": "^13.12.5",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "expo-audio": "~0.3.5",
+    "expo-dev-client": "~5.0.19"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
