@@ -3,178 +3,136 @@ import { StyleSheet } from "react-native";
 import { Tabs, TabList, TabTrigger, TabSlot } from "expo-router/ui";
 import { CustomTabButton } from "@/components/CustomTabButton";
 import { PlayButton } from "@/components/PlayButton";
-import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
+import TrackPlayer, {
+  Capability,
+  Event,
+  State,
+  usePlaybackState,
+  // useProgress, // Keep if you need progress updates
+  useTrackPlayerEvents,
+  RepeatMode, // Import RepeatMode
+  AppKilledPlaybackBehavior, // Import for background behavior
+  PlaybackState, // Import for type checking state
+} from "react-native-track-player";
+
+const track = {
+  id: "liveStream",
+  url: "https://s9.citrus3.com:8370/stream", // Your stream URL
+  title: "BurtonRadio Live",
+  artist: "Burton Radio",
+  artwork: require("../assets/images/icon.png"), // Replace with your actual icon path
+  isLiveStream: true, // Important for live streams
+};
+
+// --- Track Player Setup ---
+// Needs to be outside the component or memoized to avoid re-running setup unnecessarily
+// It's recommended to run setupPlayer only once for the app's lifetime.
+// You might move this to your app's entry point (e.g., App.tsx or index.js)
+// if you have one, but doing it in the root layout is also common.
+let playerInitialized = false;
+async function setupPlayer() {
+  if (playerInitialized) {
+    console.log("Player already initialized.");
+    // Optional: Check if tracks need updating or re-adding
+    // const currentTracks = await TrackPlayer.getQueue();
+    // if (!currentTracks || currentTracks.length === 0 || currentTracks[0].id !== track.id) {
+    //   await TrackPlayer.reset(); // Reset if queue is wrong
+    //   await TrackPlayer.add(track);
+    //   console.log("Tracks re-added.");
+    // }
+    return;
+  }
+  try {
+    console.log("Setting up Track Player...");
+    // You might want 'await TrackPlayer.setupPlayer({ waitForBuffer: true })' for streams
+    await TrackPlayer.setupPlayer();
+    await TrackPlayer.updateOptions({
+      // --- Capabilities define what controls appear (lock screen, notification) ---
+      capabilities: [
+        Capability.Play,
+        // Capability.Pause,
+        Capability.Stop,
+      ],
+      compactCapabilities: [Capability.Play, Capability.Stop], // For compact view like Android Auto
+
+      // --- How playback behaves when app is closed ---
+      // This is crucial for background audio persistence
+      android: {
+        // Continue playback when app is killed
+        appKilledPlaybackBehavior: AppKilledPlaybackBehavior.ContinuePlayback,
+      },
+      // iOS automatically continues playback in the background if configured correctly
+      // (Ensure 'Audio, AirPlay, and Picture in Picture' is enabled in Background Modes in Xcode)
+    });
+
+    await TrackPlayer.add(track);
+    // Don't set repeat mode for a live stream, it doesn't make sense
+    // await TrackPlayer.setRepeatMode(RepeatMode.Queue);
+    playerInitialized = true;
+    console.log("Track Player setup complete and track added.");
+  } catch (e) {
+    console.error("Error setting up Track Player:", e);
+  }
+}
+
+// --- Notification Permissions (Keep if needed for other notifications) ---
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false, // Usually false for playback notifications
+    shouldSetBadge: false,
+  }),
+});
 
 export default function Layout() {
-  const [sound, setSound] = React.useState(null);
-  const [isPlaying, setIsPlaying] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [error, setError] = React.useState(null);
-  const isMounted = React.useRef(true); // Ref to track component mount status
-  const stream = "https://s9.citrus3.com:8370/stream";
+  // --- State ---
+  // Get the current playback state
+  const playbackState = usePlaybackState() as PlaybackState; // Cast for better type checking
+  const isPlaying = React.useMemo(
+    () =>
+      playbackState.state === State.Playing ||
+      playbackState.state === State.Buffering,
+    [playbackState.state]
+  );
 
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: false,
-      shouldSetBadge: false,
-    }),
+  // --- Effects ---
+  // Setup player on mount
+  React.useEffect(() => {
+    setupPlayer(); // Initialize player and add track
+    Notifications.requestPermissionsAsync(); // Request notification permissions
+
+    // Optional: Handle AppState changes if needed for specific logic,
+    // though TrackPlayer often handles background transitions well with capabilities.
+    // const subscription = AppState.addEventListener('change', handleAppStateChange);
+    // return () => {
+    //   subscription.remove();
+    // };
+  }, []); // Runs once on mount
+
+  // --- Optional: Listen for Track Player Events (e.g., errors) ---
+  useTrackPlayerEvents([Event.PlaybackError, Event.PlaybackState], (event) => {
+    if (event.type === Event.PlaybackError) {
+      console.warn("An error occurred during playback:", event);
+      // You could show an error message to the user here
+    }
+    if (event.type === Event.PlaybackState) {
+      console.log("Playback State:", event.state);
+      // You could add specific logic here based on state changes if needed
+    }
   });
 
-  // --- Configuration Effect ---
-  React.useEffect(() => {
-    isMounted.current = true; // Component did mount
-    Notifications.requestPermissionsAsync();
-    console.log("Configuring Audio Mode...");
-    Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      interruptionModeIOS: InterruptionModeIOS.DuckOthers, // or DoNotMix
-      playsInSilentModeIOS: true, // Play even if silent switch is on (iOS)
-      staysActiveInBackground: true, // *** Crucial for background playback ***
-      interruptionModeAndroid: InterruptionModeAndroid.DuckOthers, // or DoNotMix
-      shouldDuckAndroid: true, // Lower volume for notifications etc.
-      playThroughEarpieceAndroid: false, // Use main speaker
-    })
-      .then(() => console.log("Audio Mode configured successfully."))
-      .catch((err) => {
-        console.error("Failed to set audio mode:", err);
-        setError("Failed to configure audio playback.");
-      });
-
-    // --- Cleanup Function ---
-    return () => {
-      isMounted.current = false; // Component will unmount
-      console.log("Unmounting component, unloading sound...");
-      // Unload the sound when the component unmounts
-      if (sound) {
-        sound
-          .unloadAsync()
-          .then(() => console.log("Sound unloaded on unmount."))
-          .catch((err) =>
-            console.error("Error unloading sound on unmount:", err)
-          );
-      }
-      // Optional: Reset audio mode if desired when app closes fully,
-      // but usually not necessary for background playback persistence.
-      // Audio.setAudioModeAsync({ staysActiveInBackground: false });
-    };
-  }, []); // Empty dependency array ensures this runs only once on mount
-
-  async function loadAndPlaySound() {
-    console.log("loadAndPlaySound");
-    if (isPlaying) return; // Already playing
-    if (isLoading) return; // Already loading
-
-    console.log("Loading Sound...");
-    setIsLoading(true);
-    setError(null); // Clear previous errors
-
-    try {
-      console.log("Setting Notification");
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Playing Live Burton Radio",
-          body: "Burton Radio is playing in the background.",
-          sticky: true, // Make it persistent? Check API docs
-          // You might add playback controls here using notification actions
-        },
-        trigger: null, // Show immediately
-      });
-      console.log("Notification set");
-      // If a sound object exists, unload it first before loading a new one
-      if (sound) {
-        console.log("Unloading previous sound instance...");
-        await sound.unloadAsync();
-        setSound(null); // Clear the state
-        setIsPlaying(false); // Ensure playing state is reset
-      }
-
-      console.log("Creating new sound instance...");
-      const { sound: newSound, status } = await Audio.Sound.createAsync(
-        { uri: stream }, // Use {uri: ...} for network URLs
-        // AUDIO_ASSET,        // Use require for local assets
-        { shouldPlay: true } // Start playing immediately after loading
-        // You can add onPlaybackStatusUpdate here if needed for more granular status
-        // onPlaybackStatusUpdate: (status) => { /* handle status updates */ }
-      );
-
-      if (isMounted.current) {
-        // Check if component is still mounted
-        console.log("Sound loaded and playing.");
-        setSound(newSound);
-        setIsPlaying(true);
-        setIsLoading(false);
-
-        // Optional: Add a listener for when playback finishes naturally
-        newSound.setOnPlaybackStatusUpdate((playbackStatus) => {
-          // console.log("Playback Status:", JSON.stringify(playbackStatus)); // Log everything
-          if (playbackStatus.didJustFinish && !playbackStatus.isLooping) {
-            console.log("Playback finished!");
-            if (isMounted.current) {
-              setIsPlaying(false);
-              // Optionally unload or reset here if you don't want to replay
-              // newSound.unloadAsync();
-              // setSound(null);
-            }
-          }
-          // Handle errors during playback
-          if (playbackStatus.error) {
-            console.error("Playback Error:", playbackStatus.error);
-            if (isMounted.current) {
-              setError(`Playback Error: ${playbackStatus.error}`);
-              setIsPlaying(false);
-              setIsLoading(false);
-            }
-          }
-        });
-      } else {
-        // Component unmounted before loading finished, unload sound
-        console.log("Component unmounted during load, unloading sound.");
-        newSound.unloadAsync();
-      }
-    } catch (error) {
-      console.error("Error loading or playing sound:", error);
-      if (isMounted.current) {
-        // Check if component is still mounted
-        setError(`Failed to load/play sound: ${error.message}`);
-        setIsLoading(false);
-        setIsPlaying(false); // Ensure state is correct on error
-        setSound(null); // Clear sound object on error
-      }
-    }
-  }
-
-  async function stopAndUnloadSound() {
-    console.log("stopAndUnloadSound");
-    if (!sound) return;
-
-    console.log("Stopping and Unloading Sound");
-    try {
-      await sound.unloadAsync(); // Stops playback and releases resources
-      await Notifications.dismissAllNotificationsAsync();
-      if (isMounted.current) {
-        setSound(null);
-        setIsPlaying(false);
-        setIsLoading(false); // Ensure loading is reset
-        setError(null); // Clear any errors
-      }
-    } catch (error) {
-      console.error("Error stopping/unloading sound:", error);
-      if (isMounted.current) {
-        setError("Failed to stop sound.");
-      }
-    }
-  }
-
-  React.useEffect(() => {
+  // --- Control Functions ---
+  const togglePlayback = React.useCallback(async () => {
+    console.log("Toggle Playback. Current state:", playbackState.state);
     if (isPlaying) {
-      loadAndPlaySound();
+      await TrackPlayer.pause();
     } else {
-      stopAndUnloadSound();
+      // If stopped or ready, start playing. If paused, resume.
+      await TrackPlayer.play();
     }
-  }, [isPlaying]);
+  }, [isPlaying, playbackState.state]); // Depend on isPlaying and the raw state
 
   return (
     <Tabs>
@@ -183,18 +141,11 @@ export default function Layout() {
       <TabList>
         <TabTrigger name="radio" href="/" style={styles.tabTrigger} asChild>
           <CustomTabButton icon="radio">Radio</CustomTabButton>
-          {/* <Text>Radio</Text> */}
         </TabTrigger>
-        {!isPlaying && !sound && (
-          <PlayButton onPress={loadAndPlaySound} isPlaying={isPlaying} />
-        )}
-        {isPlaying && (
-          <PlayButton onPress={stopAndUnloadSound} isPlaying={isPlaying} />
-        )}
+        <PlayButton onPress={togglePlayback} isPlaying={isPlaying} />
 
         <TabTrigger name="echo" href="/echo" style={styles.tabTrigger} asChild>
           <CustomTabButton icon="newspaper">Echo</CustomTabButton>
-          {/* <Text>Echo</Text> */}
         </TabTrigger>
       </TabList>
     </Tabs>
