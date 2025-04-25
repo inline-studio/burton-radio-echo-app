@@ -1,8 +1,21 @@
+// /Users/scott/Herd/Dev/inLineStudio/apps/BurtonRadioEcho/app/_layout.tsx
+import "react-native-gesture-handler"; // Needs to be at the top
 import * as React from "react";
-import { StyleSheet } from "react-native";
-import { Tabs, TabList, TabTrigger, TabSlot } from "expo-router/ui";
+import { StyleSheet, View, Text } from "react-native";
+import {
+  NavigationContainer,
+  useNavigationContainerRef,
+} from "@react-navigation/native";
+import {
+  createBottomTabNavigator,
+  BottomTabBarProps,
+} from "@react-navigation/bottom-tabs";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context"; // Import SafeArea components
+
+// --- Your existing imports ---
 import { CustomTabButton } from "@/components/CustomTabButton";
 import { PlayButton } from "@/components/PlayButton";
+import { SettingsButton } from "@/components/SettingsButton";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import TrackPlayer, {
@@ -10,66 +23,47 @@ import TrackPlayer, {
   Event,
   State,
   usePlaybackState,
-  // useProgress, // Keep if you need progress updates
   useTrackPlayerEvents,
-  RepeatMode, // Import RepeatMode
-  AppKilledPlaybackBehavior, // Import for background behavior
-  PlaybackState, // Import for type checking state
+  AppKilledPlaybackBehavior,
+  PlaybackState,
+  Track,
 } from "react-native-track-player";
 
+// --- Import screen components ---
+import RadioScreen from "./index";
+import EchoScreen from "./echo";
+import SettingsScreen from "./settings";
+
+// --- Track Player Setup (Keep as is) ---
 const track = {
-  id: "liveStream",
-  url: "https://s9.citrus3.com:8370/stream", // Your stream URL
+  id: 1,
+  url: "https://s9.citrus3.com:8370/stream",
   title: "BurtonRadio Live",
   artist: "Burton Radio",
-  artwork: require("../assets/images/icon.png"), // Replace with your actual icon path
-  isLiveStream: true, // Important for live streams
+  artwork: require("../assets/images/icon.png"),
+  isLiveStream: true,
 };
 
-// --- Track Player Setup ---
-// Needs to be outside the component or memoized to avoid re-running setup unnecessarily
-// It's recommended to run setupPlayer only once for the app's lifetime.
-// You might move this to your app's entry point (e.g., App.tsx or index.js)
-// if you have one, but doing it in the root layout is also common.
 let playerInitialized = false;
 async function setupPlayer() {
+  // ... (Keep your existing setupPlayer function)
+  console.log("player state", playerInitialized);
   if (playerInitialized) {
     console.log("Player already initialized.");
-    // Optional: Check if tracks need updating or re-adding
-    // const currentTracks = await TrackPlayer.getQueue();
-    // if (!currentTracks || currentTracks.length === 0 || currentTracks[0].id !== track.id) {
-    //   await TrackPlayer.reset(); // Reset if queue is wrong
-    //   await TrackPlayer.add(track);
-    //   console.log("Tracks re-added.");
-    // }
     return;
   }
   try {
     console.log("Setting up Track Player...");
-    // You might want 'await TrackPlayer.setupPlayer({ waitForBuffer: true })' for streams
     await TrackPlayer.setupPlayer();
     await TrackPlayer.updateOptions({
-      // --- Capabilities define what controls appear (lock screen, notification) ---
-      capabilities: [
-        Capability.Play,
-        // Capability.Pause,
-        Capability.Stop,
-      ],
-      compactCapabilities: [Capability.Play, Capability.Stop], // For compact view like Android Auto
-
-      // --- How playback behaves when app is closed ---
-      // This is crucial for background audio persistence
+      capabilities: [Capability.Play, Capability.Stop],
+      compactCapabilities: [Capability.Play, Capability.Stop],
       android: {
-        // Continue playback when app is killed
-        appKilledPlaybackBehavior: AppKilledPlaybackBehavior.ContinuePlayback,
+        appKilledPlaybackBehavior:
+          AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
       },
-      // iOS automatically continues playback in the background if configured correctly
-      // (Ensure 'Audio, AirPlay, and Picture in Picture' is enabled in Background Modes in Xcode)
     });
-
     await TrackPlayer.add(track);
-    // Don't set repeat mode for a live stream, it doesn't make sense
-    // await TrackPlayer.setRepeatMode(RepeatMode.Queue);
     playerInitialized = true;
     console.log("Track Player setup complete and track added.");
   } catch (e) {
@@ -77,19 +71,136 @@ async function setupPlayer() {
   }
 }
 
-// --- Notification Permissions (Keep if needed for other notifications) ---
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
-    shouldPlaySound: false, // Usually false for playback notifications
+    shouldPlaySound: false,
     shouldSetBadge: false,
   }),
 });
 
+// --- Create Tab Navigator ---
+const Tab = createBottomTabNavigator();
+
+// --- Custom Tab Bar Component ---
+function CustomTabBar({
+  state,
+  descriptors,
+  navigation,
+  isPlaying,
+  togglePlayback,
+  openSettings,
+}: BottomTabBarProps & {
+  isPlaying: boolean;
+  togglePlayback: () => void;
+  openSettings: () => void;
+}) {
+  // Define icons for each route name
+  const routeIcons: { [key: string]: string } = {
+    Radio: "radio",
+    Echo: "newspaper",
+    Settings: "options", // Or 'cog', 'options', etc. depending on your icon set
+  };
+
+  return (
+    <SafeAreaView edges={["bottom"]} style={styles.tabBarContainer}>
+      <View style={styles.tabBarInnerContainer}>
+        {/* Render Radio Tab */}
+        <CustomTabButtonWrapper
+          route={state.routes.find((r) => r.name === "Radio")}
+          descriptor={
+            descriptors[state.routes.find((r) => r.name === "Radio")?.key || ""]
+          }
+          navigation={navigation}
+          isFocused={
+            state.index === state.routes.findIndex((r) => r.name === "Radio")
+          }
+          iconName={routeIcons["Radio"]}
+        />
+
+        {/* Render Play Button */}
+        <PlayButton onPress={togglePlayback} isPlaying={isPlaying} />
+
+        {/* Render Settings Button */}
+        <SettingsButton onPress={openSettings} />
+
+        {/* Render Echo Tab */}
+        <CustomTabButtonWrapper
+          route={state.routes.find((r) => r.name === "Echo")}
+          descriptor={
+            descriptors[state.routes.find((r) => r.name === "Echo")?.key || ""]
+          }
+          navigation={navigation}
+          isFocused={
+            state.index === state.routes.findIndex((r) => r.name === "Echo")
+          }
+          iconName={routeIcons["Echo"]}
+        />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+// Helper component to render each tab button consistently
+function CustomTabButtonWrapper({
+  route,
+  descriptor,
+  navigation,
+  isFocused,
+  iconName,
+}: any) {
+  if (!route || !descriptor) return null; // Handle cases where route/descriptor might be missing
+
+  const { options } = descriptor;
+  const label =
+    options.tabBarLabel !== undefined
+      ? options.tabBarLabel
+      : options.title !== undefined
+      ? options.title
+      : route.name;
+
+  const onPress = () => {
+    const event = navigation.emit({
+      type: "tabPress",
+      target: route.key,
+      canPreventDefault: true,
+    });
+
+    if (!isFocused && !event.defaultPrevented) {
+      navigation.navigate(route.name, route.params);
+    }
+  };
+
+  const onLongPress = () => {
+    navigation.emit({
+      type: "tabLongPress",
+      target: route.key,
+    });
+  };
+
+  return (
+    <CustomTabButton
+      key={route.key}
+      icon={iconName}
+      isFocused={isFocused}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      accessibilityRole="button"
+      accessibilityState={isFocused ? { selected: true } : {}}
+      accessibilityLabel={options.tabBarAccessibilityLabel}
+      testID={options.tabBarTestID}
+      style={styles.tabButton} // Added style for flex distribution
+    >
+      {/* Ensure label is wrapped in Text */}
+      <Text>{label as string}</Text>
+    </CustomTabButton>
+  );
+}
+
+// --- Main Layout Component ---
 export default function Layout() {
-  // --- State ---
-  // Get the current playback state
-  const playbackState = usePlaybackState() as PlaybackState; // Cast for better type checking
+  // --- State & Effects (Keep as is) ---
+  const playbackState = usePlaybackState() as PlaybackState;
   const isPlaying = React.useMemo(
     () =>
       playbackState.state === State.Playing ||
@@ -97,81 +208,238 @@ export default function Layout() {
     [playbackState.state]
   );
 
-  // --- Effects ---
-  // Setup player on mount
+  // Create the navigation ref
+  const navigationRef = useNavigationContainerRef();
+  // State for the metadata display text
+  const [nowPlayingText, setNowPlayingText] = React.useState("Live Stream"); // Default text
+
   React.useEffect(() => {
-    setupPlayer(); // Initialize player and add track
-    Notifications.requestPermissionsAsync(); // Request notification permissions
+    setupPlayer();
+    Notifications.requestPermissionsAsync();
+  }, []);
 
-    // Optional: Handle AppState changes if needed for specific logic,
-    // though TrackPlayer often handles background transitions well with capabilities.
-    // const subscription = AppState.addEventListener('change', handleAppStateChange);
-    // return () => {
-    //   subscription.remove();
-    // };
-  }, []); // Runs once on mount
+  // useTrackPlayerEvents([Event.PlaybackError, Event.PlaybackState], (event) => {
+  //   if (event.type === Event.PlaybackError) {
+  //     console.warn("An error occurred during playback:", event);
+  //   }
+  //   if (event.type === Event.PlaybackState) {
+  //     console.log("Playback State:", event.state);
+  //   }
+  // });
 
-  // --- Optional: Listen for Track Player Events (e.g., errors) ---
-  useTrackPlayerEvents([Event.PlaybackError, Event.PlaybackState], (event) => {
-    if (event.type === Event.PlaybackError) {
-      console.warn("An error occurred during playback:", event);
-      // You could show an error message to the user here
+  useTrackPlayerEvents(
+    [
+      Event.PlaybackError,
+      Event.PlaybackState,
+      Event.PlaybackMetadataReceived, // this is depricated and should be swapped for the new ones below
+      Event.AudioCommonMetadataReceived,
+      Event.AudioTimedMetadataReceived,
+    ],
+    async (event) => {
+      // Make the callback async
+      if (event.type === Event.PlaybackError) {
+        console.warn("An error occurred during playback:", event);
+      }
+      if (event.type === Event.PlaybackState) {
+        console.log("Playback State:", event.state);
+      }
+
+      // --- Handle Metadata Updates ---
+      if (
+        event.type === Event.AudioCommonMetadataReceived ||
+        event.type === Event.AudioTimedMetadataReceived ||
+        event.type === Event.PlaybackMetadataReceived
+      ) {
+        console.log("Metadata received:", event); // Good for debugging what the stream sends
+
+        const currentTrackId = track.id; // The ID of the track we initially added
+
+        // Prepare the metadata object based on what the event provides
+        // Use Partial<Track> to only update specific fields
+        // for v5 future release
+        // const metadataToUpdate: Partial<Track> = {};
+        let nowPlaying: string = "Live Stream";
+
+        if (event.title) {
+          // for v5 future release
+          // metadataToUpdate.title = "BurtonRadio Live - " + event.title;
+          nowPlaying = event.title;
+
+          if (event.artist) {
+            // for v5 future release
+            // metadataToUpdate.artist = event.artist;
+            nowPlaying += " - " + event.artist;
+          }
+        }
+
+        setNowPlayingText(nowPlaying);
+        // You could potentially update artwork if the stream provides a URL
+        // if (event.artwork) {
+        //   metadataToUpdate.artwork = event.artwork; // Needs to be a URI string or require()
+        // }
+
+        // Only update if we have something new
+        if (Object.keys(metadataToUpdate).length > 0) {
+          try {
+            console.log(
+              `Updating metadata for track ${currentTrackId}:`,
+              metadataToUpdate
+            );
+            // Update the metadata for the specific track ID
+            // for v5 future release
+            // await TrackPlayer.updateMetadataForTrack(
+            //   currentTrackId,
+            //   metadataToUpdate
+            // );
+            console.log("Metadata updated successfully for lock screen.");
+          } catch (error) {
+            console.error("Error updating track metadata:", error);
+          }
+        }
+      }
+      // --- End Metadata Update Handling ---
     }
-    if (event.type === Event.PlaybackState) {
-      console.log("Playback State:", event.state);
-      // You could add specific logic here based on state changes if needed
-    }
-  });
+  );
 
-  // --- Control Functions ---
+  const openSettings = React.useCallback(() => {
+    // Check if the navigation container is ready and navigate
+    if (navigationRef.isReady()) {
+      // Use the ref to navigate
+      navigationRef.navigate("Settings"); // <-- Use ref here
+    } else {
+      // Handle case where navigator isn't ready (optional)
+      console.warn("Navigation not ready when trying to open settings.");
+    }
+  }, []);
+
   const togglePlayback = React.useCallback(async () => {
+    const currentPlaybackState = await TrackPlayer.getPlaybackState();
     console.log("Toggle Playback. Current state:", playbackState.state);
-    if (isPlaying) {
+    if (
+      currentPlaybackState.state === State.Playing ||
+      currentPlaybackState.state === State.Buffering
+    ) {
       await TrackPlayer.pause();
     } else {
-      // If stopped or ready, start playing. If paused, resume.
-      await TrackPlayer.play();
+      if (
+        currentPlaybackState.state === State.Ready ||
+        currentPlaybackState.state === State.Paused ||
+        currentPlaybackState.state === State.Stopped
+      ) {
+        await TrackPlayer.play();
+      } else {
+        console.log(
+          "Player not in a state to play, current state:",
+          currentPlaybackState.state
+        );
+        // Consider adding logic here if needed, e.g., TrackPlayer.reset() then TrackPlayer.play()
+      }
     }
-  }, [isPlaying, playbackState.state]); // Depend on isPlaying and the raw state
+  }, []);
 
+  // --- Render ---
   return (
-    <Tabs>
-      <StatusBar backgroundColor="#342f56" />
-      <TabSlot />
-      <TabList>
-        <TabTrigger name="radio" href="/" style={styles.tabTrigger} asChild>
-          <CustomTabButton icon="radio">Radio</CustomTabButton>
-        </TabTrigger>
-        <PlayButton onPress={togglePlayback} isPlaying={isPlaying} />
-
-        <TabTrigger name="echo" href="/echo" style={styles.tabTrigger} asChild>
-          <CustomTabButton icon="newspaper">Echo</CustomTabButton>
-        </TabTrigger>
-      </TabList>
-    </Tabs>
+    // Use SafeAreaProvider at the root
+    <SafeAreaProvider>
+      {/* <StatusBar backgroundColor="#342f56" style="light" /> */}
+      <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
+        {/* Metadata Bar */}
+        <View style={styles.metadataBar}>
+          <Text
+            style={styles.metadataText}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {nowPlayingText}
+          </Text>
+        </View>
+        <View style={styles.layoutContainer}>
+          <NavigationContainer
+            independent={true}
+            ref={navigationRef}
+            style={styles.navigationContainer}
+          >
+            {/* Use independent if nested */}
+            <Tab.Navigator
+              // Use the custom tabBar component
+              tabBar={(props) => (
+                <CustomTabBar
+                  {...props}
+                  isPlaying={isPlaying}
+                  togglePlayback={togglePlayback}
+                  openSettings={openSettings}
+                />
+              )}
+              screenOptions={{
+                headerShown: false, // Hide default headers if you have custom ones in screens
+              }}
+            >
+              <Tab.Screen
+                name="Radio" // This name is used for navigation and in the tab bar label
+                component={RadioScreen}
+                // options={{ tabBarLabel: 'Radio' }} // Optional: customize label if needed
+              />
+              <Tab.Screen
+                name="Echo"
+                component={EchoScreen}
+                // options={{ tabBarLabel: 'Echo' }} // Optional: customize label if needed
+              />
+              <Tab.Screen
+                name="Settings"
+                component={SettingsScreen}
+                // options={{ tabBarLabel: 'Settings' }} // Optional: Set label explicitly
+              />
+            </Tab.Navigator>
+          </NavigationContainer>
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
-  tabList: {
-    display: "flex",
-    position: "absolute",
-    bottom: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "red",
-    padding: 8,
-    width: "100%",
-  },
-  tabTrigger: {
+  safeArea: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: "blue",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "#342f56", // Background for safe area edges
   },
-  main: {
+  layoutContainer: {
+    flex: 1, // Make layout container fill the safe area
+    backgroundColor: "#fff", // Default background for screen area (optional)
+  },
+  navigationContainer: {
+    flex: 1, // Ensure NavigationContainer fills space above metadata bar
+  },
+  metadataBar: {
+    height: 25, // Adjust height as needed
+    backgroundColor: "#2a2545", // Choose a background color
+    paddingHorizontal: 15,
+    justifyContent: "center", // Center text vertically
+    alignItems: "center", // Center text horizontally
+  },
+  metadataText: {
+    color: "#ccc", // Choose text color
+    fontSize: 12,
+  },
+  tabBarContainer: {
+    backgroundColor: "#342f56", // Example background for the safe area part
+    // position: 'absolute', // If you want it floating over content
+    // bottom: 0,
+    // left: 0,
+    // right: 0,
+  },
+  tabBarInnerContainer: {
+    flexDirection: "row",
+    height: 80, // Adjust as needed
+    alignItems: "center",
     backgroundColor: "#342f56",
+    // Add other styles like borders, shadows etc.
+    // borderTopWidth: 1,
+    // borderTopColor: '#ccc',
+  },
+  tabButton: {
+    flex: 1, // Allow tab buttons to take up space
+    alignItems: "center", // Center content within the button
+    justifyContent: "center",
   },
 });

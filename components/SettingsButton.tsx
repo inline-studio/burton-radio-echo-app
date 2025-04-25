@@ -1,16 +1,12 @@
 import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-interface PlayButtonProps {
+interface SettingsButtonProps {
   onPress: () => void;
-  isPlaying: boolean;
 }
 
-export function PlayButton(props: PlayButtonProps) {
-  let icon = <Ionicons name="play" size={24} color="#342f56" />;
-  if (props.isPlaying) {
-    icon = <Ionicons name="stop" size={24} color="#342f56" />;
-  }
+export function SettingsButton(props: SettingsButtonProps) {
+  let icon = <Ionicons name="options" size={24} color="#342f56" />;
   return (
     <TouchableOpacity style={styles.mainButton} onPress={props.onPress}>
       <View>{icon}</View>
@@ -20,16 +16,16 @@ export function PlayButton(props: PlayButtonProps) {
 
 const styles = StyleSheet.create({
   mainButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
     zIndex: 10,
     position: "absolute",
-    bottom: 0,
-    left: "40%",
+    bottom: 50,
+    right: "5%",
     borderColor: "#000",
     borderWidth: 1,
   },
