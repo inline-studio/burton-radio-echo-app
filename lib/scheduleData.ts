@@ -20,43 +20,62 @@ export interface ScheduleEntry {
 // IMPORTANT: This needs manual updating if the official schedule changes.
 // Consider fetching from an API if possible in the future.
 export const RADIO_SCHEDULE: ScheduleEntry[] = [
+  // test data
+  {
+    day: "Tuesday",
+    startTime: "10:15",
+    endTime: "10:30",
+    showName: "Test Show",
+  },
+  {
+    day: "Tuesday",
+    startTime: "10:30",
+    endTime: "10:45",
+    showName: "Test Show",
+  },
+  {
+    day: "Tuesday",
+    startTime: "10:45",
+    endTime: "11:00",
+    showName: "Test Show",
+  },
+  {
+    day: "Tuesday",
+    startTime: "11:00",
+    endTime: "11:15",
+    showName: "Test Show",
+  },
+  {
+    day: "Tuesday",
+    startTime: "11:15",
+    endTime: "11:30",
+    showName: "Test Show",
+  },
+  {
+    day: "Tuesday",
+    startTime: "11:30",
+    endTime: "11:45",
+    showName: "Test Show",
+  },
+  {
+    day: "Tuesday",
+    startTime: "11:45",
+    endTime: "12:00",
+    showName: "Test Show",
+  },
+  {
+    day: "Tuesday",
+    startTime: "11:47",
+    endTime: "12:00",
+    showName: "Test Show",
+  },
+  {
+    day: "Tuesday",
+    startTime: "11:50",
+    endTime: "12:00",
+    showName: "Test Show",
+  },
   // Monday
-  {
-    day: "Monday",
-    startTime: "12:50",
-    endTime: "13:00",
-    showName: "Test Show",
-  },
-  {
-    day: "Monday",
-    startTime: "13:00",
-    endTime: "13:15",
-    showName: "Test Show",
-  },
-  {
-    day: "Monday",
-    startTime: "13:15",
-    endTime: "13:30",
-    showName: "Test Show",
-  },
-  {
-    day: "Monday",
-    startTime: "13:30",
-    endTime: "13:45",
-    showName: "Test Show",
-  },
-  {
-    day: "Monday",
-    startTime: "13:45",
-    endTime: "14:00",
-    showName: "Test Show",
-  },
-  {
-    day: "Monday",
-    startTime: "14:00",
-    endTime: "14:15",
-    showName: "Test Show",
-  },
   {
     day: "Monday",
     startTime: "06:00",

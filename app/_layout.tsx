@@ -28,13 +28,20 @@ import TrackPlayer, {
   PlaybackState,
   Track,
 } from "react-native-track-player";
-import { registerBackgroundFetchAsync } from "../lib/backgroundNotificationTask";
+import {
+  registerBackgroundFetchAsync,
+  checkBackgroundFetchStatus,
+} from "../lib/backgroundNotificationTask";
 
 // --- Import screen components ---
 import RadioScreen from "./index";
 import EchoScreen from "./echo";
 import SettingsScreen from "./settings";
 import * as Sentry from "@sentry/react-native";
+import {
+  startForegroundNotificationTask,
+  stopForegroundNotificationTask,
+} from "@/lib/foregroundNotificationTask";
 
 Sentry.init({
   dsn: "https://7e6eeb67377fd1938efd4b5de1e4afa8@o4509231204794368.ingest.de.sentry.io/4509231212527696",
@@ -230,17 +237,27 @@ export default Sentry.wrap(function Layout() {
   React.useEffect(() => {
     setupPlayer();
     Notifications.requestPermissionsAsync();
+    startForegroundNotificationTask();
 
     // Register the background task when the app loads
     const registerTask = async () => {
       try {
         await registerBackgroundFetchAsync();
-        Logger.debug("Background fetch task registered successfully.");
+        Logger.debug(
+          "Background fetch task registered successfully.",
+          await checkBackgroundFetchStatus()
+        );
       } catch (err) {
         Logger.error("Failed to register background fetch task:", err);
       }
     };
     registerTask();
+
+    return () => {
+      // cleanup function
+      // Unregister the background task when the app is closed
+      stopForegroundNotificationTask();
+    };
   }, []);
 
   // useTrackPlayerEvents([Event.PlaybackError, Event.PlaybackState], (event) => {
@@ -257,8 +274,7 @@ export default Sentry.wrap(function Layout() {
       Event.PlaybackError,
       Event.PlaybackState,
       Event.PlaybackMetadataReceived, // this is depricated and should be swapped for the new ones below
-      Event.AudioCommonMetadataReceived,
-      Event.AudioTimedMetadataReceived,
+      Event.MetadataCommonReceived,
     ],
     async (event) => {
       // Make the callback async
@@ -271,9 +287,8 @@ export default Sentry.wrap(function Layout() {
 
       // --- Handle Metadata Updates ---
       if (
-        event.type === Event.AudioCommonMetadataReceived ||
-        event.type === Event.AudioTimedMetadataReceived ||
-        event.type === Event.PlaybackMetadataReceived
+        event.type === Event.PlaybackMetadataReceived ||
+        event.type === Event.MetadataCommonReceived
       ) {
         Logger.debug("Metadata received:", event); // Good for debugging what the stream sends
 
@@ -341,7 +356,7 @@ export default Sentry.wrap(function Layout() {
 
   const togglePlayback = React.useCallback(async () => {
     const currentPlaybackState = await TrackPlayer.getPlaybackState();
-    Logger.debug("Toggle Playback. Current state:", playbackState.state);
+    Logger.debug("Toggle Playback. Current state:", currentPlaybackState.state);
     if (
       currentPlaybackState.state === State.Playing ||
       currentPlaybackState.state === State.Buffering
