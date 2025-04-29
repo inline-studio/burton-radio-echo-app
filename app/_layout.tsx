@@ -1,5 +1,6 @@
 // /Users/scott/Herd/Dev/inLineStudio/apps/BurtonRadioEcho/app/_layout.tsx
 import "react-native-gesture-handler"; // Needs to be at the top
+import { Logger } from "../services";
 import * as React from "react";
 import { StyleSheet, View, Text } from "react-native";
 import {
@@ -16,7 +17,6 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { CustomTabButton } from "@/components/CustomTabButton";
 import { PlayButton } from "@/components/PlayButton";
 import { SettingsButton } from "@/components/SettingsButton";
-import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import TrackPlayer, {
   Capability,
@@ -28,11 +28,25 @@ import TrackPlayer, {
   PlaybackState,
   Track,
 } from "react-native-track-player";
+import { registerBackgroundFetchAsync } from "../lib/backgroundNotificationTask";
 
 // --- Import screen components ---
 import RadioScreen from "./index";
 import EchoScreen from "./echo";
 import SettingsScreen from "./settings";
+import * as Sentry from "@sentry/react-native";
+
+Sentry.init({
+  dsn: "https://7e6eeb67377fd1938efd4b5de1e4afa8@o4509231204794368.ingest.de.sentry.io/4509231212527696",
+
+  // Configure Session Replay
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1,
+  integrations: [Sentry.mobileReplayIntegration()],
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 // --- Track Player Setup (Keep as is) ---
 const track = {
@@ -47,13 +61,13 @@ const track = {
 let playerInitialized = false;
 async function setupPlayer() {
   // ... (Keep your existing setupPlayer function)
-  console.log("player state", playerInitialized);
+  Logger.debug("player state", playerInitialized);
   if (playerInitialized) {
-    console.log("Player already initialized.");
+    Logger.warn("Player already initialized.");
     return;
   }
   try {
-    console.log("Setting up Track Player...");
+    Logger.debug("Setting up Track Player...");
     await TrackPlayer.setupPlayer();
     await TrackPlayer.updateOptions({
       capabilities: [Capability.Play, Capability.Stop],
@@ -65,9 +79,9 @@ async function setupPlayer() {
     });
     await TrackPlayer.add(track);
     playerInitialized = true;
-    console.log("Track Player setup complete and track added.");
+    Logger.debug("Track Player setup complete and track added.");
   } catch (e) {
-    console.error("Error setting up Track Player:", e);
+    Logger.error("Error setting up Track Player:", e);
   }
 }
 
@@ -198,7 +212,7 @@ function CustomTabButtonWrapper({
 }
 
 // --- Main Layout Component ---
-export default function Layout() {
+export default Sentry.wrap(function Layout() {
   // --- State & Effects (Keep as is) ---
   const playbackState = usePlaybackState() as PlaybackState;
   const isPlaying = React.useMemo(
@@ -216,6 +230,17 @@ export default function Layout() {
   React.useEffect(() => {
     setupPlayer();
     Notifications.requestPermissionsAsync();
+
+    // Register the background task when the app loads
+    const registerTask = async () => {
+      try {
+        await registerBackgroundFetchAsync();
+        Logger.debug("Background fetch task registered successfully.");
+      } catch (err) {
+        Logger.error("Failed to register background fetch task:", err);
+      }
+    };
+    registerTask();
   }, []);
 
   // useTrackPlayerEvents([Event.PlaybackError, Event.PlaybackState], (event) => {
@@ -238,10 +263,10 @@ export default function Layout() {
     async (event) => {
       // Make the callback async
       if (event.type === Event.PlaybackError) {
-        console.warn("An error occurred during playback:", event);
+        Logger.warn("An error occurred during playback:", event);
       }
       if (event.type === Event.PlaybackState) {
-        console.log("Playback State:", event.state);
+        Logger.debug("Playback State:", event.state);
       }
 
       // --- Handle Metadata Updates ---
@@ -250,7 +275,7 @@ export default function Layout() {
         event.type === Event.AudioTimedMetadataReceived ||
         event.type === Event.PlaybackMetadataReceived
       ) {
-        console.log("Metadata received:", event); // Good for debugging what the stream sends
+        Logger.debug("Metadata received:", event); // Good for debugging what the stream sends
 
         const currentTrackId = track.id; // The ID of the track we initially added
 
@@ -260,7 +285,7 @@ export default function Layout() {
         // const metadataToUpdate: Partial<Track> = {};
         let nowPlaying: string = "Live Stream";
 
-        if (event.title) {
+        if (event.title && event.title !== "Unknown") {
           // for v5 future release
           // metadataToUpdate.title = "BurtonRadio Live - " + event.title;
           nowPlaying = event.title;
@@ -273,13 +298,15 @@ export default function Layout() {
         }
 
         setNowPlayingText(nowPlaying);
+        // for v5 future release
         // You could potentially update artwork if the stream provides a URL
         // if (event.artwork) {
         //   metadataToUpdate.artwork = event.artwork; // Needs to be a URI string or require()
         // }
 
+        // for v5 future release
         // Only update if we have something new
-        if (Object.keys(metadataToUpdate).length > 0) {
+        /* if (Object.keys(metadataToUpdate).length > 0) {
           try {
             console.log(
               `Updating metadata for track ${currentTrackId}:`,
@@ -295,7 +322,7 @@ export default function Layout() {
           } catch (error) {
             console.error("Error updating track metadata:", error);
           }
-        }
+        } */
       }
       // --- End Metadata Update Handling ---
     }
@@ -308,18 +335,18 @@ export default function Layout() {
       navigationRef.navigate("Settings"); // <-- Use ref here
     } else {
       // Handle case where navigator isn't ready (optional)
-      console.warn("Navigation not ready when trying to open settings.");
+      Logger.warn("Navigation not ready when trying to open settings.");
     }
   }, []);
 
   const togglePlayback = React.useCallback(async () => {
     const currentPlaybackState = await TrackPlayer.getPlaybackState();
-    console.log("Toggle Playback. Current state:", playbackState.state);
+    Logger.debug("Toggle Playback. Current state:", playbackState.state);
     if (
       currentPlaybackState.state === State.Playing ||
       currentPlaybackState.state === State.Buffering
     ) {
-      await TrackPlayer.pause();
+      await TrackPlayer.stop();
     } else {
       if (
         currentPlaybackState.state === State.Ready ||
@@ -328,7 +355,7 @@ export default function Layout() {
       ) {
         await TrackPlayer.play();
       } else {
-        console.log(
+        Logger.debug(
           "Player not in a state to play, current state:",
           currentPlaybackState.state
         );
@@ -395,7 +422,7 @@ export default function Layout() {
       </SafeAreaView>
     </SafeAreaProvider>
   );
-}
+});
 
 // --- Styles ---
 const styles = StyleSheet.create({

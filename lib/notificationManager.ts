@@ -1,4 +1,5 @@
 // /Users/scott/Herd/Dev/inLineStudio/apps/BurtonRadioEcho/lib/notificationManager.ts
+import { Logger } from "../services";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
@@ -22,7 +23,7 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
       return JSON.parse(storedPreferences);
     }
   } catch (e) {
-    console.error("Failed to load notification preferences:", e);
+    Logger.error("Failed to load notification preferences:", e);
   }
   // Return empty object if nothing stored or error
   return {};
@@ -91,12 +92,12 @@ export async function triggerNotificationIfEnabled(
   showName: string,
   notificationContent: Notifications.NotificationContentInput
 ): Promise<void> {
-  console.log(`Checking if notification should be sent for: ${showName}`);
+  Logger.debug(`Checking if notification should be sent for: ${showName}`);
 
   // 1. Check Permissions
   const hasPermission = await checkAndRequestNotificationPermissions();
   if (!hasPermission) {
-    console.log("Notification permissions not granted.");
+    Logger.debug("Notification permissions not granted.");
     // Optionally inform the user they need to enable permissions in settings
     return;
   }
@@ -104,20 +105,20 @@ export async function triggerNotificationIfEnabled(
   // 2. Check User Preference
   const isEnabled = await isNotificationEnabledForShow(showName);
   if (!isEnabled) {
-    console.log(`Notifications disabled for show: ${showName}`);
+    Logger.debug(`Notifications disabled for show: ${showName}`);
     return;
   }
 
   // 3. Schedule Notification
   try {
-    console.log(`Scheduling notification for: ${showName}`);
+    Logger.debug(`Scheduling notification for: ${showName}`);
     await Notifications.scheduleNotificationAsync({
       content: notificationContent,
       trigger: null, // Send immediately (or set a specific time/interval)
     });
-    console.log(`Notification scheduled successfully for: ${showName}`);
+    Logger.debug(`Notification scheduled successfully for: ${showName}`);
   } catch (error) {
-    console.error(`Failed to schedule notification for ${showName}:`, error);
+    Logger.error(`Failed to schedule notification for ${showName}:`, error);
   }
 }
 

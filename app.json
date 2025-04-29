@@ -13,7 +13,8 @@
       "bundleIdentifier": "BurtonRadioEcho",
       "infoPlist": {
         "UIBackgroundModes": [
-          "audio"
+          "audio",
+          "fetch"
         ],
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -24,7 +25,8 @@
         "backgroundColor": "#342f56"
       },
       "permissions": [
-        "android.permission.WAKE_LOCK"
+        "android.permission.WAKE_LOCK",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ],
       "package": "com.inline_studio.BurtonRadioEcho"
     },
@@ -34,6 +36,18 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "burton-radio-echo",
+          "organization": "inline-studio"
+        }
+      ],
+      "expo-background-fetch",
+      [
+        "expo-notifications"
+      ],
       [
         "expo-splash-screen",
         {

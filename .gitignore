@@ -37,3 +37,6 @@ yarn-error.*
 
 app-example
 *.apk
+
+.env.local
+android/

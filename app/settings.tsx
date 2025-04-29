@@ -1,5 +1,6 @@
 // /Users/scott/Herd/Dev/inLineStudio/apps/BurtonRadioEcho/app/settings.tsx
 import React, { useState, useEffect, useCallback } from "react";
+import { Logger } from "../services";
 import {
   View,
   Text,
@@ -49,7 +50,7 @@ export default function SettingsScreen() {
           setPreferences(initialPrefs);
         }
       } catch (e) {
-        console.error("Failed to load notification preferences:", e);
+        Logger.error("Failed to load notification preferences:", e);
         setError("Failed to load settings. Please try again.");
         // Initialize with default state on error
         const initialPrefs: NotificationPreferences = {};
@@ -71,7 +72,7 @@ export default function SettingsScreen() {
       try {
         await AsyncStorage.setItem(ASYNC_STORAGE_KEY, JSON.stringify(newPrefs));
       } catch (e) {
-        console.error("Failed to save notification preferences:", e);
+        Logger.error("Failed to save notification preferences:", e);
         // Optionally show an error to the user
       }
     },
