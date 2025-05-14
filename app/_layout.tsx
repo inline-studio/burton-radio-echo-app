@@ -28,20 +28,13 @@ import TrackPlayer, {
   PlaybackState,
   Track,
 } from "react-native-track-player";
-import {
-  registerBackgroundFetchAsync,
-  checkBackgroundFetchStatus,
-} from "../lib/backgroundNotificationTask";
 
 // --- Import screen components ---
 import RadioScreen from "./index";
 import EchoScreen from "./echo";
 import SettingsScreen from "./settings";
 import * as Sentry from "@sentry/react-native";
-import {
-  startForegroundNotificationTask,
-  stopForegroundNotificationTask,
-} from "@/lib/foregroundNotificationTask";
+import { setupNotificationsForShows } from "@/lib/notificationManager";
 
 Sentry.init({
   dsn: "https://7e6eeb67377fd1938efd4b5de1e4afa8@o4509231204794368.ingest.de.sentry.io/4509231212527696",
@@ -69,6 +62,9 @@ let playerInitialized = false;
 async function setupPlayer() {
   // ... (Keep your existing setupPlayer function)
   Logger.debug("player state", playerInitialized);
+//   if (State.) {
+
+//   }
   if (playerInitialized) {
     Logger.warn("Player already initialized.");
     return;
@@ -95,7 +91,7 @@ async function setupPlayer() {
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
-    shouldPlaySound: false,
+    shouldPlaySound: true,
     shouldSetBadge: false,
   }),
 });
@@ -236,28 +232,9 @@ export default Sentry.wrap(function Layout() {
 
   React.useEffect(() => {
     setupPlayer();
+    // re-setup notifications for if the schedule has changed
+    setupNotificationsForShows();
     Notifications.requestPermissionsAsync();
-    startForegroundNotificationTask();
-
-    // Register the background task when the app loads
-    const registerTask = async () => {
-      try {
-        await registerBackgroundFetchAsync();
-        Logger.debug(
-          "Background fetch task registered successfully.",
-          await checkBackgroundFetchStatus()
-        );
-      } catch (err) {
-        Logger.error("Failed to register background fetch task:", err);
-      }
-    };
-    registerTask();
-
-    return () => {
-      // cleanup function
-      // Unregister the background task when the app is closed
-      stopForegroundNotificationTask();
-    };
   }, []);
 
   // useTrackPlayerEvents([Event.PlaybackError, Event.PlaybackState], (event) => {

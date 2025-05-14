@@ -26,7 +26,8 @@
       },
       "permissions": [
         "android.permission.WAKE_LOCK",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM"
       ],
       "package": "com.inline_studio.BurtonRadioEcho"
     },
@@ -46,7 +47,15 @@
       ],
       "expo-background-fetch",
       [
-        "expo-notifications"
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification_icon.png",
+          "color": "#342f56",
+          "defaultChannel": "br-shows",
+          "sounds": [
+            "./assets/sounds/notification.wav"
+          ]
+        }
       ],
       [
         "expo-splash-screen",

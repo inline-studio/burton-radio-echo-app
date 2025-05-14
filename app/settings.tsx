@@ -1,5 +1,5 @@
 // /Users/scott/Herd/Dev/inLineStudio/apps/BurtonRadioEcho/app/settings.tsx
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Logger } from "../services";
 import {
   View,
@@ -11,12 +11,13 @@ import {
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-// Import Notifications if you need to interact with permissions etc. here
-// import * as Notifications from 'expo-notifications';
-import { UNIQUE_SHOW_NAMES } from "../lib/scheduleData";
+import debounce from 'lodash.debounce';
+import { UNIQUE_SHOW_NAMES } from "../lib/showSchedule";
+import { setupNotificationsForShows } from "@/lib/notificationManager";
 
 // --- Configuration ---
 const ASYNC_STORAGE_KEY = "notificationPreferences";
+const DEBOUNCE_DELAY = 2500;
 
 // Manually derived list of unique show names from the schedule URL
 // Ideally, fetch this from an API you control for easier updates.
@@ -66,35 +67,62 @@ export default function SettingsScreen() {
     loadPreferences();
   }, []); // Empty dependency array means run once on mount
 
-  // --- Save Preferences ---
-  const savePreferences = useCallback(
-    async (newPrefs: NotificationPreferences) => {
-      try {
-        await AsyncStorage.setItem(ASYNC_STORAGE_KEY, JSON.stringify(newPrefs));
-      } catch (e) {
-        Logger.error("Failed to save notification preferences:", e);
-        // Optionally show an error to the user
-      }
-    },
-    []
+  // --- Debounced Save Preferences ---
+  // Use useMemo to create the debounced function only once
+  const debouncedSavePreferences = useMemo(
+    () =>
+      debounce(async (newPrefs: NotificationPreferences) => {
+        try {
+        //   Logger.debug("Saving notification preferences (debounced):", newPrefs);
+          await AsyncStorage.setItem(ASYNC_STORAGE_KEY, JSON.stringify(newPrefs));
+          setupNotificationsForShows();
+        } catch (e) {
+          Logger.error("Failed to save notification preferences:", e);
+          // Optionally show an error to the user
+        }
+      }, DEBOUNCE_DELAY), // Apply the debounce delay
+    [] // Empty dependency array ensures the debounced function is stable
   );
+
+  // // --- Save Preferences ---
+  // const savePreferences = useCallback(
+  //   async (newPrefs: NotificationPreferences) => {
+  //     try {
+  //       Logger.debug("Saving notification preferences:", newPrefs);
+  //       await AsyncStorage.setItem(ASYNC_STORAGE_KEY, JSON.stringify(newPrefs));
+  //       // TODO: fire notification setup here
+  //     } catch (e) {
+  //       Logger.error("Failed to save notification preferences:", e);
+  //       // Optionally show an error to the user
+  //     }
+  //   },
+  //   []
+  // );
 
   // --- Handle Toggle ---
   const handleToggle = (showName: string, value: boolean) => {
     const newPreferences = {
-      ...preferences,
+      ...preferences, 
       [showName]: value,
     };
     setPreferences(newPreferences);
-    savePreferences(newPreferences); // Save whenever a toggle changes
+    debouncedSavePreferences(newPreferences);
   };
+  // const handleToggle = (showName: string, value: boolean) => {
+  //   const newPreferences = {
+  //     ...preferences,
+  //     [showName]: value,
+  //   };
+  //   setPreferences(newPreferences);
+  //   savePreferences(newPreferences); // Save whenever a toggle changes
+  // };
 
   // --- Render Logic ---
   if (isLoading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" />
-        <Text>Loading Settings...</Text>
+        <Text style={styles.loadingText}>Loading Settings...</Text>
       </View>
     );
   }
@@ -176,5 +204,9 @@ const styles = StyleSheet.create({
     color: "red",
     fontSize: 16,
     textAlign: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    color: "#fff", // Make loading text visible on dark background
   },
 });
