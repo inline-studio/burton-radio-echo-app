@@ -80,9 +80,17 @@ const events = {
   "BREWERS BABBLE": {
     Saturday: [{ startTime: "09:00", endTime: "10:00" }],
   },
+  "THE TEST EVENT": {
+    Tuesday: [
+      { startTime: "11:30", endTime: "12:00" },
+      { startTime: "12:30", endTime: "13:00" },
+      { startTime: "13:30", endTime: "14:00" },
+      { startTime: "14:30", endTime: "15:00" },
+    ],
+  },
 } as const;
 
-type Day =
+export type Day =
   | "Monday"
   | "Tuesday"
   | "Wednesday"
@@ -105,19 +113,7 @@ export type ShowEntry = {
 
 export const SHOW_SCHEDULE: ShowEntry = events;
 
-// Helper function to get unique show names (useful for settings screen)
-export function getUniqueShowNames(): string[] {
-  const showNames = Object.entries(SHOW_SCHEDULE)
-    .map(([name, schedules]) => name)
-    // Filter out generic names if desired, e.g., 'Non Stop Music'
-    .filter((name) => name !== "Non Stop Music");
-  return [...new Set(showNames)].sort(); // Return unique, sorted list
-}
-
-// Example: Get the unique names from our schedule
-export const UNIQUE_SHOW_NAMES = getUniqueShowNames();
-
-export function getDayNumberFromName(dayName: Day | string): number {
+export function getDayNumberFromName(dayName: Day): number {
   switch (dayName) {
     case "Sunday":
       return 1;
@@ -133,9 +129,5 @@ export function getDayNumberFromName(dayName: Day | string): number {
       return 6;
     case "Saturday":
       return 7;
-    default:
-      // Handle cases where the input string might not match the Day type
-      console.warn(`Invalid day name provided: "${dayName}"`);
-      return -1; // Return -1 to indicate an invalid input
   }
 }

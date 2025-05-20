@@ -65,7 +65,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#342f56"
         }
-      ]
+      ],
+      "expo-router"
     ],
     "experiments": {
       "typedRoutes": true

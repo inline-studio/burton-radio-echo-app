@@ -1,23 +1,17 @@
-// /Users/scott/Herd/Dev/inLineStudio/apps/BurtonRadioEcho/lib/notificationManager.ts
-import { Logger } from "../services";
+import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
-import { Platform } from "react-native";
-import { getDayNumberFromName, SHOW_SCHEDULE } from "./showSchedule";
+
+import { Logger } from "@/services";
+import { type Day, getDayNumberFromName, SHOW_SCHEDULE } from "@/lib/showSchedule";
 
 // Use the same key as in settings.tsx
-const ASYNC_STORAGE_KEY = "notificationPreferences";
-const NOTIFICATION_STORAGE_KEY = "notificationStorageKey";
+const ASYNC_STORAGE_KEY = "notificationPreferences" as const;
+const NOTIFICATION_STORAGE_KEY = "notificationStorageKey" as const;
 
-// Define the type for preferences, matching settings.tsx
-type NotificationPreferences = {
-    [showName: string]: boolean;
-};
-
-type NotificationSetup = {
-    [showName in keyof typeof SHOW_SCHEDULE]: string[];
-};
-
+export type ShowName = keyof typeof SHOW_SCHEDULE;
+export type NotificationPreferences = Partial<Record<ShowName, boolean>>;
+export type NotificationSetup = Partial<Record<ShowName, string[]>>;
 
 /**
  * Loads notification preferences from AsyncStorage.
@@ -27,7 +21,7 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
     try {
         const storedPreferences = await AsyncStorage.getItem(ASYNC_STORAGE_KEY);
         if (storedPreferences !== null) {
-            return JSON.parse(storedPreferences);
+            return JSON.parse(storedPreferences) as NotificationPreferences;
         }
     } catch (e) {
         Logger.error("Failed to load notification preferences:", e);
@@ -36,11 +30,11 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
     return {};
 }
 
-export async function getNotificationSetup(): Promise<NotificationSetup | object> {
+export async function getNotificationSetup(): Promise<NotificationSetup> {
     try {
         const storedIdentifiers = await AsyncStorage.getItem(NOTIFICATION_STORAGE_KEY);
         if (storedIdentifiers !== null) {
-            return JSON.parse(storedIdentifiers);
+            return JSON.parse(storedIdentifiers) as NotificationSetup;
         }
     } catch (e) {
         Logger.error("Failed to load notification identifiers:", e);
@@ -55,7 +49,7 @@ export async function getNotificationSetup(): Promise<NotificationSetup | object
  * @returns Promise<boolean> True if notifications are enabled for the show, false otherwise.
  */
 export async function isNotificationEnabledForShow(
-    showName: string
+    showName: ShowName
 ): Promise<boolean> {
     const preferences = await getNotificationPreferences();
     return preferences[showName] ?? false; // Default to false if showName not found
@@ -76,16 +70,16 @@ export async function checkAndRequestNotificationPermissions(): Promise<boolean>
         const { status: existingStatus } =
             await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
-        if (existingStatus !== "granted") {
+        if (existingStatus !== Notifications.PermissionStatus.GRANTED) {
             const { status } = await Notifications.requestPermissionsAsync();
             finalStatus = status;
         }
-        return finalStatus === "granted";
+        return finalStatus === Notifications.PermissionStatus.GRANTED;
     } else if (Platform.OS === "ios") {
         const { status: existingStatus } =
             await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
-        if (existingStatus !== "granted") {
+        if (existingStatus !== Notifications.PermissionStatus.GRANTED) {
             // Request permissions for alert, badge, and sound
             const { status } = await Notifications.requestPermissionsAsync({
                 ios: {
@@ -96,47 +90,46 @@ export async function checkAndRequestNotificationPermissions(): Promise<boolean>
             });
             finalStatus = status;
         }
-        return finalStatus === "granted";
+        return finalStatus === Notifications.PermissionStatus.GRANTED;
     }
     return false; // Default for other platforms
 }
 
 export async function setupNotificationsForShows(): Promise<void> {
     const preferences = await getNotificationPreferences();
-    const notificationSetup: NotificationSetup = {} as NotificationSetup;
+    const notificationSetup: NotificationSetup = {};
 
-    // clear previoius notifications
+    // clear previous notifications
     const storedIdentifiers = await getNotificationSetup();
-    if (storedIdentifiers) {
-        for (const showName in storedIdentifiers) {
-            const identifiers = storedIdentifiers[showName];
-            if (identifiers) {
-                for (const identifier of identifiers) {
-                    await Notifications.cancelScheduledNotificationAsync(identifier);
-                }
+    for (const showName in storedIdentifiers) {
+        const identifiers = storedIdentifiers[showName as ShowName];
+        if (identifiers) {
+            for (const identifier of identifiers) {
+                await Notifications.cancelScheduledNotificationAsync(identifier);
             }
         }
     }
     // setup new notifications
-    for (const showName in SHOW_SCHEDULE) {
+    for (const _showName in SHOW_SCHEDULE) {
+        const showName = _showName as ShowName;
         // do we have permission to send this notification?
         if (preferences[showName]) {
             // we have permission, setup notifications for each day and time in the show schedule
             const schedule = SHOW_SCHEDULE[showName];
-            const scheduledNotificationidentifiers: string[] = [];
-            for (const day in schedule) {
+            const scheduledNotificationIdentifiers: string[] = [];
+            for (const _day in schedule) {
+                const day = _day as Day;
                 const times = schedule[day];
                 const numericDay = getDayNumberFromName(day);
-                for (const time of times) {
+                for (const time of times ?? []) {
                     const [hours, minutes] = time.startTime.split(":").map(Number);
-                    let trigger = null;
+                    let trigger: Notifications.SchedulableNotificationTriggerInput;
                     if (Platform.OS === "android") {
                         trigger = {
                             type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
                             weekday: numericDay,
                             hour: hours,
                             minute: minutes,
-                            repeats: true,
                             channelId: "br-shows"
                         };
 
@@ -153,6 +146,10 @@ export async function setupNotificationsForShows(): Promise<void> {
                         continue; // Skip if not Android or iOS
                     }
                     const nextRun = await Notifications.getNextTriggerDateAsync(trigger);
+                    if (!nextRun) {
+                        Logger.error(`Notification getNextTriggerDateAsync failed for ${showName}`);
+                        continue;
+                    }
                     Logger.debug(`Notification next trigger details for ${showName}: `, trigger, new Date(nextRun));
 
                     const identifier = await Notifications.scheduleNotificationAsync({
@@ -168,12 +165,12 @@ export async function setupNotificationsForShows(): Promise<void> {
                         },
                         trigger: trigger
                     });
-                    scheduledNotificationidentifiers.push(identifier);
+                    scheduledNotificationIdentifiers.push(identifier);
                 }
             }
 
             // capture the scheduled identifiers for this show
-            notificationSetup[showName] = scheduledNotificationidentifiers;
+            notificationSetup[showName] = scheduledNotificationIdentifiers;
         }
     }
 

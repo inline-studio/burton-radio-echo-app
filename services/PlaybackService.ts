@@ -1,27 +1,32 @@
-// service.js
 import TrackPlayer, { Event } from 'react-native-track-player';
-import { Logger } from "./Logger";
+import { Logger } from "@/services";
 
 // This is the entry point for the playback service
-export async function PlaybackService() {
-
+export function PlaybackService() {
     TrackPlayer.addEventListener(Event.RemotePlay, () => {
         Logger.debug('RemotePlay event');
-        TrackPlayer.play();
+        TrackPlayer.play().catch((err: unknown) => {
+            Logger.error('RemotePlay: TrackPlayer.play', err);
+        });
     });
 
     TrackPlayer.addEventListener(Event.RemotePause, () => {
         Logger.debug('RemotePause event');
-        TrackPlayer.stop();
+        // note: stream cannot be paused
+        TrackPlayer.stop().catch((err: unknown) => {
+            Logger.error('RemotePause: TrackPlayer.stop', err);
+        });
     });
 
     TrackPlayer.addEventListener(Event.RemoteStop, () => {
         Logger.debug('RemoteStop event');
-        TrackPlayer.destroy(); // Stops playback and removes notification
+        TrackPlayer.stop().catch((err: unknown) => {
+            Logger.error('RemoteStop: TrackPlayer.stop', err);
+        });
     });
 
     // This event is needed for background playback to continue playing.
-    TrackPlayer.addEventListener(Event.RemoteDuck, async (e) => {
+    TrackPlayer.addEventListener(Event.RemoteDuck, (_unused_ev) => {
         // Handle audio ducking (e.g., lower volume during notifications)
         // Logger.debug('Remote Duck:', e);
         // TrackPlayer.setVolume(e.paused ? 1 : e.ducking ? 0.5 : 1);
@@ -31,9 +36,9 @@ export async function PlaybackService() {
 
     // Optional: Handle playback ending automatically
     TrackPlayer.addEventListener(Event.PlaybackQueueEnded, (data) => {
-      Logger.debug('PlaybackQueueEnded event', data);
-      // You could stop the service here if desired
-      // TrackPlayer.destroy();
+        Logger.debug('PlaybackQueueEnded event', data);
+        // You could stop the service here if desired
+        // TrackPlayer.destroy();
     });
 
     //  TrackPlayer.addEventListener(Event.PlaybackState, (state) => {
@@ -49,7 +54,9 @@ export async function PlaybackService() {
     //        // Logger.debug('Progress updated:', data);
     //   });
 
-       TrackPlayer.addEventListener(Event.PlaybackError, (error) => {
-           Logger.error('Playback Error:', error);
-       });
+    TrackPlayer.addEventListener(Event.PlaybackError, (error) => {
+        Logger.error('Playback Error:', error);
+    });
+
+    return Promise.resolve();
 };
