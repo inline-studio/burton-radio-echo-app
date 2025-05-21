@@ -14,7 +14,7 @@ import { CustomTabBar } from '@/components/CustomTabBar';
 import { styles } from '@/constants/Styles';
 import { Tabs } from '@/lib/navigation';
 import { setupNotificationsForShows } from '@/lib/notificationManager';
-import { ingestMetadata, setupPlayer, shutdownPlayer } from '@/lib/track';
+import { ingestMetadata, setupPlayer } from '@/lib/track';
 import { Logger } from '@/services';
 
 export default Sentry.wrap(function Layout() {
@@ -33,7 +33,7 @@ export default Sentry.wrap(function Layout() {
         void Notifications.requestPermissionsAsync();
 
         return () => {
-            void shutdownPlayer();
+            // void shutdownPlayer();
         };
     }, []);
 

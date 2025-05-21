@@ -59,7 +59,7 @@ export async function setupPlayer() {
             capabilities: [Capability.Play, Capability.Stop],
             compactCapabilities: [Capability.Play, Capability.Stop],
             android: {
-                appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
+                appKilledPlaybackBehavior: AppKilledPlaybackBehavior.PausePlayback,
             },
         });
         await rescheduleTrack();
