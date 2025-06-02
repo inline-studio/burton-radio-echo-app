@@ -109,6 +109,7 @@ export async function setupNotificationsForShows(): Promise<void> {
             }
         }
     }
+
     // setup new notifications
     for (const _showName in SHOW_SCHEDULE) {
         const showName = _showName as ShowName;
@@ -124,22 +125,12 @@ export async function setupNotificationsForShows(): Promise<void> {
                 for (const time of times ?? []) {
                     const [hours, minutes] = time.startTime.split(":").map(Number);
                     let trigger: Notifications.SchedulableNotificationTriggerInput;
-                    if (Platform.OS === "android") {
+                    if (Platform.OS === "android" || Platform.OS === "ios") {
                         trigger = {
                             type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
                             weekday: numericDay,
-                            hour: hours,
-                            minute: minutes,
-                            channelId: "br-shows"
-                        };
-
-                    } else if (Platform.OS === "ios") {
-                        trigger = {
-                            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-                            day: numericDay,
-                            hour: hours,
-                            minute: minutes,
-                            repeats: true,
+                            hour: minutes === 0 ? hours - 1 : hours,
+                            minute: minutes === 0 ? 59 : minutes - 1,
                             channelId: "br-shows"
                         };
                     } else {
@@ -150,7 +141,6 @@ export async function setupNotificationsForShows(): Promise<void> {
                         Logger.error(`Notification getNextTriggerDateAsync failed for ${showName}`);
                         continue;
                     }
-                    Logger.debug(`Notification next trigger details for ${showName}: `, trigger, new Date(nextRun));
 
                     const identifier = await Notifications.scheduleNotificationAsync({
                         content: {
@@ -165,6 +155,7 @@ export async function setupNotificationsForShows(): Promise<void> {
                         },
                         trigger: trigger
                     });
+                    Logger.debug(`Scheduled ${showName}: `, new Date(nextRun), 'identifier: ' + identifier);
                     scheduledNotificationIdentifiers.push(identifier);
                 }
             }
