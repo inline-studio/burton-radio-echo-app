@@ -12,6 +12,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "BurtonRadioEcho",
       "infoPlist": {
+        "infoPlist": {
+          "NSCameraUsageDescription": "Put your app usage description here."
+        },
         "UIBackgroundModes": [
           "audio",
           "fetch"

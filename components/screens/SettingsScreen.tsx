@@ -146,7 +146,7 @@ export default function SettingsScreen() {
                 </View>
             ))}
             {/* Add a little space at the bottom */}
-            <View style={{ height: 30 }} />
+            <View style={{ height: 70 }} />
         </ScrollView>
     );
 }
